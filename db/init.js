@@ -6,7 +6,7 @@ async function initDB(supabaseUrl, supabaseKey ) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    module.exports = supabase;
+    return supabase
 }
 
 module.exports = { 

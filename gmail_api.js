@@ -1,7 +1,11 @@
+const dotenv = require("dotenv");
+dotenv.config();
+
+
 const { chromium } = require("playwright");
 const GmailManager = require("./gmail");
 const adsPower = new (require("./adspower"))();
-const tasks = require("./tasks");
+const tasks = require("./db/tasks");
 const { initDB } = require("./db/init")
 const TASK_STATUS = { PENDING: 'PENDING', COMPLETED: 'COMPLETED' };
 
@@ -39,23 +43,8 @@ function extractIdFromEnv(envVar) {
     return match ? match[0] : null;
 }
 
-function validateEnvironment() {
-    const threadId = extractIdFromEnv('THREAD_ID');
-    const rdpId = extractIdFromEnv('RDP_ID');
-
-    if (!threadId) {
-        throw new Error('THREAD_ID is not set or invalid');
-    }
-
-    if (!rdpId) {
-        throw new Error('RDP_ID is not set or invalid');
-    }
-
-    return { threadId, rdpId };
-}
-
 async function fetchPendingGmailTasks(supabaseClient) {
-    return await taskUtils.getTask(
+    return await tasks.getTask(
       supabaseClient,
       [TASK_STATUS.PENDING],
       [TASK_STATUS.COMPLETED],
@@ -78,9 +67,10 @@ async function leaseProfile(masterEmail) {
 }
 
 async function processTask(task, dbClient) {
-    const { rdp_id, thread_id, master_email, service } = task.metadata;
+    const { rdp_id, thread_id, master_email, service } = task.additional_data;
     const profileId = task.profile_id;
-  
+
+    console.log(rdp_id, thread_id, master_email, service, profile_id)
     const browserInfo = await adsPower.launchBrowser(profileId);
     if (!browserInfo) throw new Error("Failed to launch browser");
   
@@ -132,10 +122,8 @@ async function connectBrowser(browserInfo) {
 }
 
 async function main() {
-    const { threadId, rdpId } = validateEnvironment();
-  
-    const rapidDBClient = initDB(process.env.RAPIDFS_SUPABASE_URL, process.env.RAPIDFS_SUPABASE_KEY);
-    const wisleyDBClient = initDB(process.env.WISLEY_SUPABASE_URL, process.env.WISLEY_SUPABASE_KEY);
+    const rapidDBClient = await initDB(process.env.RAPIDFS_SUPABASE_URL, process.env.RAPIDFS_SUPABASE_KEY);
+    const wisleyDBClient = await initDB(process.env.WISLEY_SUPABASE_URL, process.env.WISLEY_SUPABASE_KEY);
   
     console.log(`Starting task processor for GMAILs`);
   
@@ -157,7 +145,7 @@ async function main() {
         const allTasks = [...tag(rapidTasks, rapidDBClient), ...tag(wisleyTasks, wisleyDBClient)];
   
         if (!allTasks.length) {
-          console.log(`No eligible tasks found for RDP ${rdpId}, Thread ${threadId}. Waiting ${CONFIG.NO_TASKS_WAIT / 1000} seconds.`);
+          console.log(`No eligible tasks found. Waiting ${CONFIG.NO_TASKS_WAIT / 1000} seconds.`);
           await delay(CONFIG.NO_TASKS_WAIT);
           continue;
         }
@@ -182,6 +170,7 @@ async function main() {
         if (leasedProfileID && masterEmail && leasedEmails[masterEmail]) {
           leasedEmails[masterEmail] = leasedEmails[masterEmail].filter(id => id !== leasedProfileID);
         }
+        await delay(1000)
       }
     }
 }
