@@ -95,7 +95,7 @@ class GmailManager {
           this.page = await this.newTab();
           await this.page.waitForTimeout(30000);
           const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300; // Current epoch time in seconds minus 300 seconds (5 minutes)
-          await this.page.goto(`https://mail.google.com/mail/u/0/#search/${searchQuery} after:${fiveMinutesAgo}`, { timeout: 60000 });
+          await this.page.goto(`https://mail.google.com/mail/u/0/#search/${searchQuery}`)// after:${fiveMinutesAgo}`, { timeout: 60000 });
           await this.page.waitForTimeout(5000);
       
           // Verify if still logged in
@@ -125,6 +125,7 @@ class GmailManager {
             }
           }
       
+          console.log("email elements", emailElements)
           if (!emailElements || emailElements.length === 0) {
             await this.page.close();
             return [false, "No emails found matching the search query"];
@@ -143,6 +144,11 @@ class GmailManager {
                 clicked = true;
                 break;
               } else if (subjectText === "rapid! - Welcome") {
+                await emailElement.click();
+                console.log(`Found matching email with subject: ${subjectText}`);
+                clicked = true;
+                break;
+              } else if (subjectText === "Here is your requested verification code") {
                 await emailElement.click();
                 console.log(`Found matching email with subject: ${subjectText}`);
                 clicked = true;
@@ -185,20 +191,25 @@ class GmailManager {
           let extractedText = "";
           try{
             if(outerHTML.includes(contentSplitText1)) {
-              extractedText = outerHTML.split(contentSplitText1)[1].replace("</span><p>", "");
+              extractedText = outerHTML.split(contentSplitText1)[1].replace("</span><p>", "").replace("</span>", "");
             } else {
-              extractedText = outerHTML.split(contentSplitText2)[1].replace("</span><p>", "");
+              extractedText = outerHTML.split(contentSplitText2)[1].replace("</span><p>", "").replace("</span>", "");
             }
           } catch(error) {
-            console.log(outerHTML)
-            extractedText = outerHTML.split(contentSplitText2)[1].replace("</span><p>", "");
+            extractedText = outerHTML.split(contentSplitText2)[1].replace("</span><p>", "").replace("</span>", "");
           }
 
+          console.log(extractedText)
           if(outerHTML.includes(contentEndSplitText1)) {
-            extractedText = extractedText.split(contentEndSplitText1)[0].replace("<p>", "");
+            extractedText = extractedText.split(contentEndSplitText1)[0].replace("<p>", "").replace('<spanclass="im">', "");
           } else {
-            extractedText = extractedText.split(contentEndSplitText2)[0].replace("<p>", "");
+            extractedText = extractedText.split(contentEndSplitText2)[0].replace("<p>", "").replace('<spanclass="im">', "");
           }
+
+          extractedText = extractedText.replace(/\D/g, "");
+          extractedText = extractedText.replaceAll("\n","")
+          extractedText = extractedText.replaceAll(" ","")
+          console.log("--", extractedText, '---')
           await this.page.waitForTimeout(10000);
           
           // Go back to email list

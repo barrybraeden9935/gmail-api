@@ -7,7 +7,7 @@ const GmailManager = require("./gmail");
 const adsPower = new (require("./adspower"))();
 const tasks = require("./db/tasks");
 const { initDB } = require("./db/init")
-const TASK_STATUS = { PENDING: 'PENDING', COMPLETED: 'COMPLETED' };
+const TASK_STATUS = { PENDING: 'PENDING', COMPLETED: 'COMPLETED', RUNNING: 'RUNNING' };
 
 const CONFIG = {
     POLL_INTERVAL: { min: 1000, max: 15000 },
@@ -21,13 +21,13 @@ const TASK_TYPES = {
 };
 
 let profileIDs = {
-    "barrybraeden9935@gmail.com": ["k10h2efj", "k10hahfx", "k10hahfy", "k10l5xar", "k10l5xau", "k10l5xav"],
-    "yeagyibarra773@gmail.com": ["kuv3jo2", "k10hb4gw", "k10hb4gx", "k10l5v9q", "k10l5v9s", "k10l5v9t"]
+    "barry.braeden9935@gmail.com": ["k10h2efj", "k10hahfx", "k10hahfy", "k10l5xar", "k10l5xau", "k10l5xav"],
+    "yeagyib.arra773@gmail.com": ["kuv3jo2", "k10hb4gw", "k10hb4gx", "k10l5v9q", "k10l5v9s", "k10l5v9t"],
 };
 
 let leasedEmails = {
-    "barrybraeden9935@gmail.com": [],
-    "yeagyibarra773@gmail.com": []
+    "barry.braeden9935@gmail.com": [],
+    "yeagyib.arra773@gmail.com": []
 };
 
 function delay(ms) {
@@ -70,7 +70,7 @@ async function processTask(task, dbClient) {
     const { rdp_id, thread_id, master_email, service } = task.additional_data;
     const profileId = task.profile_id;
 
-    console.log(rdp_id, thread_id, master_email, service, profile_id)
+    console.log(rdp_id, thread_id, master_email, service, profileId)
     const browserInfo = await adsPower.launchBrowser(profileId);
     if (!browserInfo) throw new Error("Failed to launch browser");
   
@@ -82,17 +82,24 @@ async function processTask(task, dbClient) {
     let success = false;
     let code = null;
   
-    const query = `subject%3ATemporary+Authorization+Code+to%3A${task.email}`;
-    const matchStart = "code</span> is: ";
-    const matchStartAlt = "code</span></span> is: ";
-    const matchEnd = "<";
-    const matchEndAlt = "<br><br>";
-  
-    if (service === 'wisley_login' || service === 'rapidfs') {
+    if (service === 'wisley_login') {
+      const query = `subject%3AHere+is+your+requested+verification+code+to%3A${task.email}`;
+      const matchStart = "</span>:</p>";
+      const matchStartAlt = ":</p>";
+      const matchEnd = "<br><br>";
+      const matchEndAlt = "<br><br>";
+      [success, code] = await gmail.getEmailContent(query, matchStart, matchStartAlt, matchEnd, matchEndAlt);
+
+    } else if (service === 'rapidfs') {
+      const query = `subject%3ATemporary+Authorization+Code+to%3A${task.email}`;
+      const matchStart = "code</span> is: ";
+      const matchStartAlt = "code</span></span> is: ";
+      const matchEnd = "<";
+      const matchEndAlt = "<br><br>";
       [success, code] = await gmail.getEmailContent(query, matchStart, matchStartAlt, matchEnd, matchEndAlt);
     }
   
-    await taskUtils.updateTask(dbClient, task.id, {
+    await tasks.updateTask(dbClient, task.id, {
       output: { success, code },
       status: TASK_STATUS.COMPLETED
     });
@@ -152,7 +159,7 @@ async function main() {
   
         const selectedTask = allTasks[Math.floor(Math.random() * allTasks.length)];
         const dbClient = selectedTask.__client;
-        masterEmail = selectedTask.metadata.master_email;
+        masterEmail = selectedTask.additional_data.master_email;
   
         leasedProfileID = await leaseProfile(masterEmail);
         if (!leasedProfileID) {
@@ -162,6 +169,8 @@ async function main() {
         }
   
         selectedTask.profile_id = leasedProfileID;
+        await tasks.updateTask(dbClient, selectedTask.id, { status: TASK_STATUS.RUNNING });
+
         await processTask(selectedTask, selectedTask.__client);
         await delay(1000);
       } catch (error) {

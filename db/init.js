@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 async function initDB(supabaseUrl, supabaseKey ) {
+    console.log(supabaseUrl, supabaseKey)
     if (!supabaseUrl || !supabaseKey) {
         throw new Error('Missing Supabase credentials in environment variables');
     }

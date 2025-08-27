@@ -34,19 +34,20 @@ async function createTask(supabase, messageId, taskType, email, profileId, addit
       if (status.length === 1) query = query.eq('status', status[0]);
       else if (status.length > 1) query = query.in('status', status);
   
-      // Apply notStatus filters
+      // // Apply notStatus filters
       for (const stat of notStatus) {
         query = query.neq('status', stat);
       }
   
-      // Apply taskTypes filters (OR condition)
+      // // Apply taskTypes filters (OR condition)
       if (taskTypes.length === 1) query = query.eq('task_type', taskTypes[0]);
       else if (taskTypes.length > 1) query = query.in('task_type', taskTypes);
   
       query = query.limit(limit);
-  
+      
       const { data, error } = await query;
-  
+      
+      console.log(data, error)
       if (error) {
         console.error('Error getting task:', error);
         return { success: false, error };
